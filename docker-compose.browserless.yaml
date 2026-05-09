@@ -1,7 +1,4 @@
-version: '3'
-
-networks:
-  whaticket:
+version: '3.8'
 
 services:
 
@@ -11,7 +8,7 @@ services:
 
   chrome:
     image: browserless/chrome:latest
+    container_name: gestawhats-chrome
+    restart: unless-stopped
     environment:
       - MAX_CONCURRENT_SESSIONS=${MAX_CONCURRENT_SESSIONS:-1}
-    networks:
-      - whaticket

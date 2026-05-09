@@ -1,15 +1,12 @@
-version: '3'
-
-networks:
-  whaticket:
+version: '3.8'
 
 services:
 
   phpmyadmin:
     image: phpmyadmin/phpmyadmin:latest
+    container_name: gestawhats-phpmyadmin
+    restart: unless-stopped
     environment:
       - PMA_HOSTS=mysql
     ports:
       - ${PMA_PORT:-9000}:80
-    networks:
-      - whaticket

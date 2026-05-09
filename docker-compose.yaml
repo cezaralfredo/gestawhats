@@ -1,7 +1,4 @@
-version: '3'
-
-networks:
-  whaticket:
+version: '3.8'
 
 services:
 
@@ -9,6 +6,8 @@ services:
     build:
       context: ./backend
       dockerfile: ./Dockerfile
+    container_name: gestawhats-backend
+    restart: unless-stopped
     environment:
       - DB_HOST=mysql
       - DB_USER=root
@@ -23,40 +22,59 @@ services:
     ports:
       - ${BACKEND_PORT:-8080}:3000
     volumes:
-      - ./backend/public/:/usr/src/app/public/
-      - ./backend/.wwebjs_auth/:/usr/src/app/.wwebjs_auth/
-    networks:
-      - whaticket
+      - backend_public:/usr/src/app/public/
+      - wwebjs_auth:/usr/src/app/.wwebjs_auth/
+    depends_on:
+      mysql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider http://localhost:3000/health 2>/dev/null || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
 
   frontend:
-    ports:
-      - ${FRONTEND_PORT:-3000}:80
-      - ${FRONTEND_SSL_PORT:-3001}:443
     build:
       context: ./frontend
       dockerfile: ./Dockerfile
+    container_name: gestawhats-frontend
+    restart: unless-stopped
     environment:
       - URL_BACKEND=backend:3000
-      - REACT_APP_BACKEND_URL=${BACKEND_URL:-http://localhost}:${PROXY_PORT:-8080}/
+      - VITE_BACKEND_URL=${BACKEND_URL:-http://localhost}:${PROXY_PORT:-8080}/
       - FRONTEND_SERVER_NAME=${FRONTEND_SERVER_NAME}
       - BACKEND_SERVER_NAME=${BACKEND_SERVER_NAME}
-    volumes:
-      - ./ssl/certs/:/etc/nginx/ssl/
-      - ./ssl/www/:/var/www/letsencrypt/
-    networks:
-      - whaticket
+    ports:
+      - ${FRONTEND_PORT:-80}:80
+    depends_on:
+      - backend
 
   mysql:
     image: ${MYSQL_ENGINE:-mariadb}:${MYSQL_VERSION:-10.6}
-    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_bin    
+    container_name: gestawhats-mysql
+    restart: unless-stopped
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_bin
     volumes:
-      - ./.docker/data/:/var/lib/mysql
+      - mysql_data:/var/lib/mysql
     environment:
       - MYSQL_DATABASE=${MYSQL_DATABASE:-whaticket}
       - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-strongpassword}
       - TZ=${TZ:-America/Fortaleza}
     ports:
       - ${MYSQL_PORT:-3306}:3306
-    restart: always
-    networks:
-      - whaticket
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+volumes:
+  mysql_data:
+  backend_public:
+  wwebjs_auth:
+
+networks:
+  default:
+    name: whaticket
