@@ -2,6 +2,13 @@ version: '3.8'
 
 services:
 
+  chrome:
+    image: browserless/chrome:latest
+    container_name: gestawhats-chrome
+    restart: unless-stopped
+    environment:
+      - MAX_CONCURRENT_SESSIONS=${MAX_CONCURRENT_SESSIONS:-10}
+
   backend:
     build:
       context: ./backend
@@ -18,7 +25,7 @@ services:
       - BACKEND_URL=${BACKEND_URL:-http://localhost}
       - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3000}
       - PROXY_PORT=${PROXY_PORT:-8080}
-      - CHROME_ARGS=--no-sandbox --disable-setuid-sandbox
+      - CHROME_WS=ws://chrome:3000
     ports:
       - ${BACKEND_PORT:-8080}:3000
     volumes:

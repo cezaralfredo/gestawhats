@@ -1,14 +1,2 @@
-version: '3.8'
-
-services:
-
-  backend:
-    environment:
-      - CHROME_WS=ws://chrome:3000
-
-  chrome:
-    image: browserless/chrome:latest
-    container_name: gestawhats-chrome
-    restart: unless-stopped
-    environment:
-      - MAX_CONCURRENT_SESSIONS=${MAX_CONCURRENT_SESSIONS:-1}
+# Chrome is now included in docker-compose.yaml by default.
+# This file is kept for compatibility but is no longer needed.
