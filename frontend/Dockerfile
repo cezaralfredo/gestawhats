@@ -10,7 +10,7 @@ COPY vite.config.js ./
 RUN npm run build
 
 FROM nginx:alpine
-RUN apk add --no-cache jq
+RUN apk add --no-cache jq wget
 
 ENV PUBLIC_HTML=/var/www/public/
 

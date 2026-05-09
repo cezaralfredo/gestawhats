@@ -13,6 +13,9 @@ ENV PORT=3000
 
 EXPOSE 3000
 
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+  CMD node -e "require('http').get('http://localhost:3000',r=>{process.exit(r.statusCode===200?0:1)}).on('error',()=>process.exit(1))"
+
 CMD /bin/sh -c ' \
   echo "Waiting for MySQL..."; \
   node -e "const n=require(\"net\");const h=process.env.DB_HOST||\"localhost\";(function w(){let c=n.connect(3306,h,()=>{c.destroy();console.log(\"MySQL ready!\");process.exit(0)});c.on(\"error\",()=>{c.destroy();setTimeout(w,1000)})})()"; \
