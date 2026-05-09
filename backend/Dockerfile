@@ -1,6 +1,6 @@
 FROM node:14 as build-deps
 
-RUN apt-get update && apt-get install -y wget dumb-init netcat-openbsd
+RUN apt-get update && apt-get install -y wget dumb-init
 
 WORKDIR /usr/src/app
 COPY package*.json ./
@@ -18,7 +18,6 @@ EXPOSE 3000
 ENTRYPOINT ["dumb-init", "--"]
 CMD /bin/sh -c ' \
   echo "Waiting for MySQL..."; \
-  while ! nc -z ${DB_HOST} 3306; do sleep 1; done; \
-  echo "MySQL ready!"; \
+  node -e "const n=require(\"net\");const h=process.env.DB_HOST||\"localhost\";(function w(){let c=n.connect(3306,h,()=>{c.destroy();console.log(\"MySQL ready!\");process.exit(0)});c.on(\"error\",()=>{c.destroy();setTimeout(w,1000)})})()"; \
   npx sequelize db:migrate; \
   node dist/server.js'
