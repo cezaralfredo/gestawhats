@@ -14,6 +14,10 @@ import apiRoutes from "./apiRoutes";
 
 const routes = Router();
 
+routes.get("/health", (_, res) => {
+  return res.json({ status: "ok" });
+});
+
 routes.use(userRoutes);
 routes.use("/auth", authRoutes);
 routes.use(settingRoutes);
