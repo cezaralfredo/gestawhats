@@ -14,7 +14,7 @@ import apiRoutes from "./apiRoutes";
 
 const routes = Router();
 
-routes.get("/health", (_, res) => {
+routes.get(["/", "/health"], (_, res) => {
   return res.json({ status: "ok" });
 });
 
