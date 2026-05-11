@@ -20,4 +20,5 @@ CMD /bin/sh -c ' \
   echo "Waiting for MySQL..."; \
   node -e "const n=require(\"net\");const h=process.env.DB_HOST||\"localhost\";(function w(){let c=n.connect(3306,h,()=>{c.destroy();console.log(\"MySQL ready!\");process.exit(0)});c.on(\"error\",()=>{c.destroy();setTimeout(w,1000)})})()"; \
   npx sequelize db:migrate; \
+  npx sequelize db:seed:all 2>/dev/null || true; \
   node dist/server.js'
