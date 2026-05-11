@@ -38,7 +38,12 @@ import toastError from "../../errors/toastError";
 
 let Mp3Recorder = null;
 
+const isSecureContext = typeof window !== "undefined" && window.isSecureContext;
+
 const initRecorder = async () => {
+  if (!isSecureContext || !navigator.mediaDevices) {
+    return null;
+  }
   if (!Mp3Recorder) {
     try {
       const MicRecorder = (await import("mic-recorder-to-mp3")).default;
@@ -325,6 +330,9 @@ const MessageInput = ({ ticketStatus }) => {
   const handleStartRecording = async () => {
     setLoading(true);
     try {
+      if (!isSecureContext || !navigator.mediaDevices) {
+        throw new Error("Gravação de áudio não disponível. Acesse via HTTPS.");
+      }
       const recorder = await initRecorder();
       if (!recorder) {
         throw new Error("Recorder not available");
