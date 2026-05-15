@@ -454,7 +454,6 @@ const init = async (whatsapp: Whatsapp): Promise<void> => {
 
     const wbot = new Client({
       authStrategy: new LocalAuth({ clientId: `bd_${whatsapp.id}` }),
-    }) as Session;
       puppeteer: {
         executablePath: process.env.CHROME_BIN || undefined,
         browserWSEndpoint: process.env.CHROME_WS || undefined,
@@ -469,7 +468,7 @@ const init = async (whatsapp: Whatsapp): Promise<void> => {
           ...args.split(" ")
         ]
       }
-    });
+    }) as Session;
 
     wbot.id = whatsapp.id;
     sessions.set(whatsapp.id, wbot);
