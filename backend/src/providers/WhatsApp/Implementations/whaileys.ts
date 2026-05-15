@@ -51,6 +51,7 @@ import {
 } from "../types";
 import { WhatsappProvider } from "../whatsappProvider";
 import { sleep } from "../../../utils/sleep";
+import { encryptSession, decryptSession } from "../../../utils/crypto";
 import {
   handleMessage,
   handleMessageAck,
@@ -219,8 +220,15 @@ const saveSessionCreds = async (
   creds: AuthenticationCreds
 ) => {
   try {
+    const rawSession = JSON.stringify(creds, BufferJSON.replacer);
+    const sessionEncryptionKey = process.env.SESSION_ENCRYPTION_KEY;
+
+    const sessionData = sessionEncryptionKey
+      ? `enc:${encryptSession(rawSession)}`
+      : rawSession;
+
     await whatsapp.update({
-      session: JSON.stringify(creds, BufferJSON.replacer),
+      session: sessionData,
       status: "CONNECTED",
       qrcode: ""
     });
@@ -284,8 +292,25 @@ const debouncedSaveCreds = (
 const useSessionAuthState = async (whatsapp: Whatsapp) => {
   const sessionId = whatsapp.id;
 
-  const creds = whatsapp.session
-    ? JSON.parse(whatsapp.session, BufferJSON.reviver)
+  const rawSession = whatsapp.session || "";
+
+  let sessionString: string;
+  if (rawSession.startsWith("enc:")) {
+    try {
+      sessionString = decryptSession(rawSession.slice(4));
+    } catch {
+      logger.warn({
+        info: "Failed to decrypt session, using raw",
+        sessionId
+      });
+      sessionString = rawSession;
+    }
+  } else {
+    sessionString = rawSession;
+  }
+
+  const creds = sessionString
+    ? JSON.parse(sessionString, BufferJSON.reviver)
     : initAuthCreds();
 
   return {
@@ -989,29 +1014,32 @@ const init = async (whatsapp: Whatsapp): Promise<void> => {
   });
 
   wbot.ev.on("messages.upsert", async ({ messages, type }) => {
-    messages.forEach(msg => {
-      msgCache.save(msg);
-      logger.debug({
-        info: "[RAW] Message received",
-        sessionId,
-        type,
-        key: msg.key,
-        messageTimestamp: msg.messageTimestamp,
-        pushName: msg.pushName,
-        status: msg.status,
-        messageType: Object.keys(msg.message || {}),
-        rawMessage: JSON.stringify(msg, null, 2)
-      });
-    });
+    const processedIds = new Set<string>();
 
     const validMessages = messages.filter(msg => {
       if (!msg.message || !shouldHandleMessage(msg)) return false;
 
-      if (type === "notify") return true;
+      if (processedIds.has(msg.key.id!)) return false;
+      processedIds.add(msg.key.id!);
 
-      if (type === "append" && msg.key.fromMe) return true;
+      const shouldHandle =
+        type === "notify" || (type === "append" && msg.key.fromMe);
 
-      return false;
+      if (shouldHandle) {
+        msgCache.save(msg);
+        logger.debug({
+          info: "[RAW] Message received",
+          sessionId,
+          type,
+          key: msg.key,
+          messageTimestamp: msg.messageTimestamp,
+          pushName: msg.pushName,
+          status: msg.status,
+          messageType: Object.keys(msg.message || {})
+        });
+      }
+
+      return shouldHandle;
     });
 
     if (validMessages.length === 0) return;
@@ -1108,7 +1136,11 @@ const init = async (whatsapp: Whatsapp): Promise<void> => {
           statusCode
         });
 
-        await sleep(3000);
+        const reconnectDelay = parseInt(
+          process.env.WHATSAPP_RECONNECT_DELAY || "3000",
+          10
+        );
+        await sleep(reconnectDelay);
         init(whatsapp);
       }
     }

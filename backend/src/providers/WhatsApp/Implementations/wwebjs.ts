@@ -31,18 +31,18 @@ import {
 } from "../../../handlers/handleWhatsappEvents";
 
 interface Session extends Client {
-  id?: number;
+  id: number;
 }
 
-const sessions: Session[] = [];
+const sessions = new Map<number, Session>();
 
 const getWbot = (whatsappId: number): Session => {
-  const sessionIndex = sessions.findIndex(s => s.id === whatsappId);
+  const wbot = sessions.get(whatsappId);
 
-  if (sessionIndex === -1) {
+  if (!wbot) {
     throw new AppError("ERR_WAPP_NOT_INITIALIZED");
   }
-  return sessions[sessionIndex];
+  return wbot;
 };
 
 const mapMessageType = (wbotType: any): MessageType => {
@@ -300,12 +300,12 @@ const syncUnreadMessages = async (wbot: Session) => {
   }
 };
 
-const removeSession = (whatsappId: number): void => {
+const removeSession = async (whatsappId: number): Promise<void> => {
   try {
-    const sessionIndex = sessions.findIndex(s => s.id === whatsappId);
-    if (sessionIndex !== -1) {
-      sessions[sessionIndex].destroy();
-      sessions.splice(sessionIndex, 1);
+    const wbot = sessions.get(whatsappId);
+    if (wbot) {
+      sessions.delete(whatsappId);
+      await wbot.destroy();
     }
   } catch (err) {
     logger.error(err);
@@ -440,9 +440,11 @@ const deleteMessage = async (
   await message.delete(true);
 };
 
+const disconnectingFlags = new Set<number>();
+
 const init = async (whatsapp: Whatsapp): Promise<void> => {
   try {
-    removeSession(whatsapp.id);
+    await removeSession(whatsapp.id);
 
     const io = getIO();
     const sessionName = whatsapp.name;
@@ -453,7 +455,6 @@ const init = async (whatsapp: Whatsapp): Promise<void> => {
     const wbot: Session = new Client({
       authStrategy: new LocalAuth({ clientId: `bd_${whatsapp.id}` }),
       puppeteer: {
-        // headless: false, // TODO make sure chromium closes on session disconnection / delete
         executablePath: process.env.CHROME_BIN || undefined,
         browserWSEndpoint: process.env.CHROME_WS || undefined,
         args: [
@@ -469,16 +470,13 @@ const init = async (whatsapp: Whatsapp): Promise<void> => {
       }
     });
 
+    wbot.id = whatsapp.id;
+    sessions.set(whatsapp.id, wbot);
+
     wbot.on("qr", async qr => {
       logger.info("Session:", sessionName);
       qrCode.generate(qr, { small: true });
       await whatsapp.update({ qrcode: qr, status: "qrcode", retries: 0 });
-
-      const sessionIndex = sessions.findIndex(s => s.id === whatsapp.id);
-      if (sessionIndex === -1) {
-        wbot.id = whatsapp.id;
-        sessions.push(wbot);
-      }
 
       io.emit("whatsappSession", {
         action: "update",
@@ -491,7 +489,7 @@ const init = async (whatsapp: Whatsapp): Promise<void> => {
     });
 
     wbot.on("auth_failure", async msg => {
-      console.error(
+      logger.error(
         `Session: ${sessionName} AUTHENTICATION FAILURE! Reason: ${msg}`
       );
 
@@ -525,13 +523,7 @@ const init = async (whatsapp: Whatsapp): Promise<void> => {
           session: whatsapp
         });
 
-        const sessionIndex = sessions.findIndex(s => s.id === whatsapp.id);
-        if (sessionIndex === -1) {
-          wbot.id = whatsapp.id;
-          sessions.push(wbot);
-        }
-
-        wbot.sendPresenceAvailable();
+        await wbot.sendPresenceAvailable();
         await syncUnreadMessages(wbot);
       } catch (err) {
         logger.error(err, "Error on whatsapp ready event");
@@ -553,8 +545,13 @@ const init = async (whatsapp: Whatsapp): Promise<void> => {
     });
 
     wbot.on("disconnected", async reason => {
+      if (disconnectingFlags.has(whatsapp.id)) return;
+      disconnectingFlags.add(whatsapp.id);
+
       logger.info(`Disconnected session: ${sessionName}, reason: ${reason}`);
       try {
+        await removeSession(whatsapp.id);
+
         await whatsapp.update({ status: "OPENING", session: "" });
 
         io.emit("whatsappSession", {
@@ -562,14 +559,20 @@ const init = async (whatsapp: Whatsapp): Promise<void> => {
           session: whatsapp
         });
 
+        const reconnectDelay = parseInt(
+          process.env.WHATSAPP_RECONNECT_DELAY || "2000",
+          10
+        );
         logger.warn(
-          `Session ${sessionName} disconnected. Restarting in 2 seconds...`
+          `Session ${sessionName} disconnected. Restarting in ${reconnectDelay}ms...`
         );
 
-        await new Promise(r => setTimeout(r, 2000));
+        await new Promise(r => setTimeout(r, reconnectDelay));
 
+        disconnectingFlags.delete(whatsapp.id);
         init(whatsapp);
       } catch (err) {
+        disconnectingFlags.delete(whatsapp.id);
         logger.error(err, "Error on whatsapp disconnected event");
       }
     });

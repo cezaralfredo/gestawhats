@@ -1,9 +1,10 @@
 import gracefulShutdown from "http-graceful-shutdown";
 import app from "./app";
-import { initIO } from "./libs/socket";
+import { initIO, getIO } from "./libs/socket";
 import { logger } from "./utils/logger";
-import { initRedis } from "./libs/redisStore";
+import { initRedis, getRedisClient } from "./libs/redisStore";
 import { StartAllWhatsAppsSessions } from "./services/WbotServices/StartAllWhatsAppsSessions";
+import { clearAllDebounces } from "./helpers/Debounce";
 
 const server = app.listen(process.env.PORT, () => {
   logger.info(`Server started on port: ${process.env.PORT}`);
@@ -12,7 +13,6 @@ const server = app.listen(process.env.PORT, () => {
 initIO(server);
 initRedis();
 StartAllWhatsAppsSessions();
-gracefulShutdown(server);
 
 process.on("uncaughtException", err => {
   logger.error({ info: "Global uncaught exception", err });
@@ -20,4 +20,23 @@ process.on("uncaughtException", err => {
 
 process.on("unhandledRejection", err => {
   if (err) logger.error({ info: "Global unhandled rejection", err });
+});
+
+gracefulShutdown(server, {
+  onShutdown: async () => {
+    logger.info("Shutting down gracefully...");
+
+    clearAllDebounces();
+
+    const io = getIO();
+    io.close();
+
+    const redis = getRedisClient();
+    if (redis) {
+      redis.disconnect();
+    }
+
+    logger.info("Graceful shutdown complete");
+  },
+  timeout: 30000
 });

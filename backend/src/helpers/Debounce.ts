@@ -1,41 +1,33 @@
-interface Timeout {
-  id: number;
-  timeout: NodeJS.Timeout;
-}
-
-const timeouts: Timeout[] = [];
+const timeouts = new Map<number, NodeJS.Timeout>();
 
 const findAndClearTimeout = (ticketId: number) => {
-  if (timeouts.length > 0) {
-    const timeoutIndex = timeouts.findIndex(timeout => timeout.id === ticketId);
-
-    if (timeoutIndex !== -1) {
-      clearTimeout(timeouts[timeoutIndex].timeout);
-      timeouts.splice(timeoutIndex, 1);
-    }
+  const existingTimeout = timeouts.get(ticketId);
+  if (existingTimeout) {
+    clearTimeout(existingTimeout);
+    timeouts.delete(ticketId);
   }
 };
 
-const debounce = (
+export const clearAllDebounces = () => {
+  for (const [ticketId, timeout] of timeouts) {
+    clearTimeout(timeout);
+  }
+  timeouts.clear();
+};
+
+export const debounce = (
   func: { (): Promise<void>; (...args: never[]): void },
   wait: number,
   ticketId: number
 ) => {
   return function executedFunction(...args: never[]): void {
-    const later = () => {
-      findAndClearTimeout(ticketId);
-      func(...args);
-    };
-
     findAndClearTimeout(ticketId);
 
-    const newTimeout = {
-      id: ticketId,
-      timeout: setTimeout(later, wait)
-    };
+    const timeout = setTimeout(() => {
+      timeouts.delete(ticketId);
+      func(...args);
+    }, wait);
 
-    timeouts.push(newTimeout);
+    timeouts.set(ticketId, timeout);
   };
 };
-
-export { debounce };

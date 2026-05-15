@@ -109,36 +109,64 @@ const saveMediaFile = async (mediaPayload: MediaPayload): Promise<string> => {
   return filename;
 };
 
+const parseVcard = (vcard: string): { name: string; phones: string[] } => {
+  let name = "";
+  const phones: string[] = [];
+
+  const lines = vcard.split("\n");
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+
+    if (/^FN(;CHARSET=[^:]+)?:(.+)/i.test(line)) {
+      const match = line.match(/^FN(;CHARSET=[^:]+)?:(.+)/i);
+      if (match) {
+        name = match[2].trim();
+      }
+    }
+
+    if (/^TEL/i.test(line)) {
+      const telMatch = line.match(/^TEL[^:]*:(.+)/i);
+      if (telMatch) {
+        const rawNumber = telMatch[1].replace(/[^\d+]/g, "");
+        if (rawNumber) {
+          phones.push(rawNumber);
+        }
+      }
+    }
+
+    if (line.startsWith("ITEM") && /TEL/i.test(line)) {
+      const itemTelMatch = line.match(/[^:]*:(.+)/);
+      if (itemTelMatch) {
+        const rawNumber = itemTelMatch[1].replace(/[^\d+]/g, "");
+        if (rawNumber) {
+          phones.push(rawNumber);
+        }
+      }
+    }
+  }
+
+  return { name, phones };
+};
+
 const processVcardMessage = async (
   messagePayload: MessagePayload
 ): Promise<void> => {
   if (messagePayload.type !== "vcard") return;
 
   try {
-    const array = messagePayload.body.split("\n");
-    const phoneNumbers: Array<{ number: string }> = [];
-    let contactName = "";
+    const { name, phones } = parseVcard(messagePayload.body);
 
-    array.forEach(line => {
-      const values = line.split(":");
-      values.forEach((value, index) => {
-        if (value.indexOf("+") !== -1) {
-          phoneNumbers.push({ number: value });
-        }
-        if (value.indexOf("FN") !== -1 && values[index + 1]) {
-          contactName = values[index + 1];
-        }
-      });
-    });
-
-    await Promise.all(
-      phoneNumbers.map(({ number }) =>
-        CreateContactService({
-          name: contactName,
-          number: number.replace(/\D/g, "")
-        })
-      )
-    );
+    if (phones.length > 0) {
+      await Promise.all(
+        phones.map(number =>
+          CreateContactService({
+            name: name || number,
+            number: number.replace(/\D/g, "")
+          })
+        )
+      );
+    }
   } catch (error) {
     logger.error("Error processing vcard message:", error);
   }

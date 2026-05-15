@@ -4,6 +4,11 @@ import Contact from "../../models/Contact";
 import Ticket from "../../models/Ticket";
 import ShowTicketService from "./ShowTicketService";
 
+const REOPEN_TICKET_HOURS = parseInt(
+  process.env.REOPEN_TICKET_HOURS || "2",
+  10
+);
+
 const FindOrCreateTicketService = async (
   contact: Contact,
   whatsappId: number,
@@ -46,7 +51,7 @@ const FindOrCreateTicketService = async (
     ticket = await Ticket.findOne({
       where: {
         updatedAt: {
-          [Op.between]: [+subHours(new Date(), 2), +new Date()]
+          [Op.between]: [+subHours(new Date(), REOPEN_TICKET_HOURS), +new Date()]
         },
         contactId: contact.id,
         whatsappId: whatsappId

@@ -29,6 +29,7 @@
     "date-fns": "^2.16.1",
     "dotenv": "^8.2.0",
     "express": "^4.17.1",
+    "express-rate-limit": "^7.0.0",
     "express-async-errors": "^3.1.1",
     "http-graceful-shutdown": "^2.3.2",
     "https-proxy-agent": "^7.0.6",
