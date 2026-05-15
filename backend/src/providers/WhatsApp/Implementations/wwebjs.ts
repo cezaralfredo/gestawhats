@@ -31,7 +31,7 @@ import {
 } from "../../../handlers/handleWhatsappEvents";
 
 interface Session extends Client {
-  id: number;
+  id?: number;
 }
 
 const sessions = new Map<number, Session>();
@@ -452,8 +452,9 @@ const init = async (whatsapp: Whatsapp): Promise<void> => {
 
     const args: string = process.env.CHROME_ARGS || "";
 
-    const wbot: Session = new Client({
+    const wbot = new Client({
       authStrategy: new LocalAuth({ clientId: `bd_${whatsapp.id}` }),
+    }) as Session;
       puppeteer: {
         executablePath: process.env.CHROME_BIN || undefined,
         browserWSEndpoint: process.env.CHROME_WS || undefined,
