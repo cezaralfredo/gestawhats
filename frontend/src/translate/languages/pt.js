@@ -108,7 +108,15 @@ const messages = {
         form: {
           name: "Nome",
           default: "Padrão",
-          farewellMessage: "Mensagem de despedida"
+          farewellMessage: "Mensagem de despedida",
+          provider: "Provedor",
+          apiUrl: "URL da API",
+          apiToken: "Token da API",
+          webhookUrl: "URL do Webhook",
+          phoneNumberId: "ID do Número de Telefone",
+          accessToken: "Token de Acesso",
+          businessAccountId: "ID da Conta Comercial",
+          webhookSecret: "Segredo do Webhook"
         },
         buttons: {
           okAdd: "Adicionar",

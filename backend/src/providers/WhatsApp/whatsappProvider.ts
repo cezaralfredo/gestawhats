@@ -8,6 +8,18 @@ import {
 } from "./types";
 import { WhatsappWebJsProvider } from "./Implementations/wwebjs";
 import { WhaileysProvider } from "./Implementations/whaileys";
+import { resolveProvider } from "./sessionRegistry";
+
+export interface ProviderConfig {
+  apiUrl?: string;
+  apiToken?: string;
+  accessToken?: string;
+  phoneNumberId?: string;
+  businessAccountId?: string;
+  webhookSecret?: string;
+  webhookUrl?: string;
+  [key: string]: any;
+}
 
 export interface WhatsappProvider {
   init(whatsapp: Whatsapp): Promise<void>;
@@ -49,6 +61,36 @@ const providersMap: Record<string, WhatsappProvider> = {
   whaileys: WhaileysProvider
 };
 
-const whatsappProvider = providersMap[provider];
+const whatsappProvider = new Proxy(providersMap[provider] as WhatsappProvider, {
+  get(target, prop: string | symbol) {
+    const method = (target as any)[prop];
+    if (typeof method !== "function") return method;
+
+    return function (this: any, ...args: any[]) {
+      const sessionId = args[0];
+      let resolvedProvider: WhatsappProvider | undefined;
+
+      if (typeof sessionId === "number") {
+        try {
+          resolvedProvider = resolveProvider(sessionId);
+        } catch {
+          resolvedProvider = providersMap[provider];
+        }
+      } else {
+        // For init(whatsapp) - first arg is a Whatsapp model instance
+        if (args[0] && typeof args[0] === "object" && args[0].provider) {
+          const { getProvider } = require("./ProviderFactory");
+          resolvedProvider = getProvider(args[0].provider);
+        }
+      }
+
+      if (!resolvedProvider) {
+        resolvedProvider = providersMap[provider];
+      }
+
+      return (resolvedProvider as any)[prop](...args);
+    };
+  }
+});
 
 export { whatsappProvider };

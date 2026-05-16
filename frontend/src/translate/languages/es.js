@@ -109,6 +109,14 @@ const messages = {
         form: {
           name: "Nombre",
           default: "Por Defecto",
+          provider: "Proveedor",
+          apiUrl: "URL de la API",
+          apiToken: "Token de la API",
+          webhookUrl: "URL del Webhook",
+          phoneNumberId: "ID del Número de Teléfono",
+          accessToken: "Token de Acceso",
+          businessAccountId: "ID de la Cuenta Comercial",
+          webhookSecret: "Secreto del Webhook"
         },
         buttons: {
           okAdd: "Agregar",

@@ -16,12 +16,51 @@ import {
 	TextField,
 	Switch,
 	FormControlLabel,
+	Select,
+	MenuItem,
+	InputLabel,
+	FormControl,
+	Typography,
+	Divider,
 } from "@material-ui/core";
 
 import api from "../../services/api";
 import { i18n } from "../../translate/i18n";
 import toastError from "../../errors/toastError";
 import QueueSelect from "../QueueSelect";
+
+const PROVIDERS = [
+	{ value: "wwebjs", label: "WhatsApp Web JS" },
+	{ value: "whaileys", label: "Whaileys (Baileys)" },
+	{ value: "evolution", label: "Evolution API" },
+	{ value: "waha", label: "Waha" },
+	{ value: "meta", label: "Meta Oficial (Cloud API)" },
+];
+
+const PROVIDER_FIELDS = {
+	evolution: [
+		{ name: "apiUrl", label: i18n => i18n.t("whatsappModal.form.apiUrl"), required: true },
+		{ name: "apiToken", label: i18n => i18n.t("whatsappModal.form.apiToken"), required: true, secret: true },
+		{ name: "webhookUrl", label: i18n => i18n.t("whatsappModal.form.webhookUrl"), required: false },
+	],
+	waha: [
+		{ name: "apiUrl", label: i18n => i18n.t("whatsappModal.form.apiUrl"), required: true },
+		{ name: "webhookUrl", label: i18n => i18n.t("whatsappModal.form.webhookUrl"), required: false },
+	],
+	meta: [
+		{ name: "phoneNumberId", label: i18n => i18n.t("whatsappModal.form.phoneNumberId"), required: true },
+		{ name: "accessToken", label: i18n => i18n.t("whatsappModal.form.accessToken"), required: true, secret: true },
+		{ name: "businessAccountId", label: i18n => i18n.t("whatsappModal.form.businessAccountId"), required: true },
+		{ name: "webhookSecret", label: i18n => i18n.t("whatsappModal.form.webhookSecret"), required: false, secret: true },
+	],
+};
+
+const initialProviderConfig = (provider) => {
+	const fields = PROVIDER_FIELDS[provider] || [];
+	const config = {};
+	fields.forEach(f => { config[f.name] = ""; });
+	return JSON.stringify(config);
+};
 
 const useStyles = makeStyles(theme => ({
 	root: {
@@ -64,9 +103,12 @@ const WhatsAppModal = ({ open, onClose, whatsAppId }) => {
 		greetingMessage: "",
 		farewellMessage: "",
 		isDefault: false,
+		provider: "wwebjs",
+		providerConfig: "{}",
 	};
 	const [whatsApp, setWhatsApp] = useState(initialState);
 	const [selectedQueueIds, setSelectedQueueIds] = useState([]);
+	const [selectedProvider, setSelectedProvider] = useState("wwebjs");
 
 	useEffect(() => {
 		const fetchSession = async () => {
@@ -75,6 +117,7 @@ const WhatsAppModal = ({ open, onClose, whatsAppId }) => {
 			try {
 				const { data } = await api.get(`whatsapp/${whatsAppId}`);
 				setWhatsApp(data);
+				setSelectedProvider(data.provider || "wwebjs");
 
 				const whatsQueueIds = data.queues?.map(queue => queue.id);
 				setSelectedQueueIds(whatsQueueIds);
@@ -86,7 +129,12 @@ const WhatsAppModal = ({ open, onClose, whatsAppId }) => {
 	}, [whatsAppId]);
 
 	const handleSaveWhatsApp = async values => {
-		const whatsappData = { ...values, queueIds: selectedQueueIds };
+		const whatsappData = {
+			...values,
+			provider: selectedProvider,
+			providerConfig: values.providerConfig,
+			queueIds: selectedQueueIds,
+		};
 
 		try {
 			if (whatsAppId) {
@@ -104,6 +152,14 @@ const WhatsAppModal = ({ open, onClose, whatsAppId }) => {
 	const handleClose = () => {
 		onClose();
 		setWhatsApp(initialState);
+		setSelectedProvider("wwebjs");
+	};
+
+	const handleProviderChange = (e, setFieldValue) => {
+		const provider = e.target.value;
+		setSelectedProvider(provider);
+		setFieldValue("provider", provider);
+		setFieldValue("providerConfig", initialProviderConfig(provider));
 	};
 
 	return (
@@ -131,7 +187,7 @@ const WhatsAppModal = ({ open, onClose, whatsAppId }) => {
 						}, 400);
 					}}
 				>
-					{({ values, touched, errors, isSubmitting }) => (
+					{({ values, touched, errors, isSubmitting, setFieldValue }) => (
 						<Form>
 							<DialogContent dividers>
 								<div className={classes.multFieldLine}>
@@ -158,6 +214,58 @@ const WhatsAppModal = ({ open, onClose, whatsAppId }) => {
 										label={i18n.t("whatsappModal.form.default")}
 									/>
 								</div>
+
+								<Divider style={{ margin: "12px 0" }} />
+								<Typography variant="subtitle2" gutterBottom>
+									{i18n.t("whatsappModal.form.provider")}
+								</Typography>
+								<FormControl variant="outlined" margin="dense" fullWidth>
+									<InputLabel>
+										{i18n.t("whatsappModal.form.provider")}
+									</InputLabel>
+									<Field
+										as={Select}
+										name="provider"
+										value={selectedProvider}
+										onChange={e => handleProviderChange(e, setFieldValue)}
+										label={i18n.t("whatsappModal.form.provider")}
+									>
+										{PROVIDERS.map(p => (
+											<MenuItem key={p.value} value={p.value}>
+												{p.label}
+											</MenuItem>
+										))}
+									</Field>
+								</FormControl>
+
+								{PROVIDER_FIELDS[selectedProvider]?.map(field => {
+									const parsed = (() => {
+										try { return JSON.parse(values.providerConfig || "{}"); }
+										catch { return {}; }
+									})();
+									const fieldValue = parsed[field.name] || "";
+
+									return (
+										<div key={field.name}>
+											<TextField
+												label={field.label(i18n)}
+												fullWidth
+												variant="outlined"
+												margin="dense"
+												type={field.secret ? "password" : "text"}
+												required={field.required}
+												value={fieldValue}
+												onChange={e => {
+													const updated = { ...parsed, [field.name]: e.target.value };
+													setFieldValue("providerConfig", JSON.stringify(updated));
+												}}
+											/>
+										</div>
+									);
+								})}
+
+								<Divider style={{ margin: "12px 0" }} />
+
 								<div>
 									<Field
 										as={TextField}
